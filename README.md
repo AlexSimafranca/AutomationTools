@@ -20,7 +20,8 @@ Contents:
      - [Normalization Without Baseline Subtraction](#normalization-without-baseline-subtraction)
      - [Normalization With Constant Baseline Subtraction](#normalization-with-constant-baseline-subtraction)
    - [Data Masking](#data-masking)
-4. [Authors](#authors)
+4. [Reporting Bugs and Errors](#reporting-bugs-and-errors)
+5. [Authors](#authors)
 
 ## Installation Instructions
 To install the package, follow these steps:
@@ -116,6 +117,9 @@ For example, entering "1.9, 1.95, 10, 1000" will produce normalized data with a 
 Data masking removes the values for a specified plot range, leaving a gap in the plotted data. This can be used for removing irrelevant data such as contaminant peaks or detector aberrations.
 
 To mask data over a specified range, select one or more data waves in the WAXSTools data window and click AutomationTools > Data Masking > Mask Data Points in Specified Range. In the pop-up window, enter the range of data to be removed (R1, R2) in the format "R1, R2".
+
+## Reporting Bugs and Errors
+Please report any bugs or errors encountered [here](https://github.com/AlexSimafranca/AutomationTools/issues) or by emailing the package maintainer. 
 
 ## Authors
 
