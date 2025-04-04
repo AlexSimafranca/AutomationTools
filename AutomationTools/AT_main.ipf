@@ -49,7 +49,7 @@ Menu "AutomationTools"
 			"Normalize Selected Waves to Max Value w\ Constant Baseline", AT_normWaveToMax_ConstBL()
 		end
 		
-		Submenu "Other"
+		Submenu "Data Masking"
 			"Mask Data Points in Specified Range", AT_maskDataPts()
 		end
 	end
@@ -620,7 +620,7 @@ function AT_processImage(thisWaveStem, processCode)
 		AT_wedge2Dto1D(thisWaveStem, plotName, processCode)
 		
 		// In-Plane Integration
-		AT_setWedgeParams(80, 89, 0.2, 2)
+		AT_setWedgeParams(79, 89, 0.2, 2)
 		AT_wedge2Dto1D(thisWaveStem, plotName, processCode)	
 	
 	elseif (stringMatch(processCode, "IvsChi"))
@@ -641,6 +641,103 @@ function AT_setWedgeParams(new_chi_start, new_chi_end, new_q_start, new_q_end)
 	chi_end = new_chi_end
 	q_start = new_q_start
 	q_end = new_q_end
+end
+
+
+function AT_qzqxyConvert()
+	string thiswavename
+	string wavenamelist = wavelist("*", ";", "")
+	
+	wave thewavelist_number = root:Packages:GIWAXS:thewavelist_number
+	NVAR g_BCX = root:Packages:GIWAXS:g_BCX
+	NVAR g_BCY = root:Packages:GIWAXS:g_BCY
+	NVAR g_R = root:Packages:GIWAXS:g_R
+	NVAR g_incidence = root:Packages:GIWAXS:g_incidence
+	NVAR g_pxsizex = root:Packages:GIWAXS:g_pxsizex
+	NVAR g_pxsizey = root:Packages:GIWAXS:g_pxsizey
+	NVAR g_q_range = root:Packages:GIWAXS:g_q_range
+	NVAR g_q_res = root:Packages:GIWAXS:g_q_res
+	NVAR g_BLenergy = root:Packages:GIWAXS:g_BLenergy
+	
+	variable i
+	for(i = 0; i < numpnts(root:Packages:GIWAXS:thewavelist_number); i += 1)
+		if(thewavelist_number[i] == 1)
+			thiswavename=stringfromlist(i, wavenamelist)
+			distcorr2($thiswavename, g_BCX, g_BCY, g_R, g_incidence, g_pxsizex, g_pxsizey, g_q_range, g_q_res, g_BLenergy)
+		endif
+	endfor
+	
+	update_wavelist()
+end
+
+
+function AT_wedge2Dto1D(thisWaveStem, plotName, processCode)
+	string thisWaveStem
+	string plotName
+	string processCode
+	
+	NVAR chi_start = root:Packages:GIWAXS:g_chi_start
+	NVAR chi_end = root:Packages:GIWAXS:g_chi_end
+	NVAR q_start = root:Packages:GIWAXS:g_q_start
+	NVAR q_end = root:Packages:GIWAXS:g_q_end
+	
+	// Switch to "qz(qxy) to chi(q)" tab
+	DoWindow/F giwaxs_tools
+	TabProc("qzqxy", 1)   // Fix later - doesn't update tab icon....
+	
+	// Display cake slice
+	DoWindow/F $plotName
+	
+	// Convert qz-qxy data to chi-q data
+	wave thewavelist_number = root:Packages:GIWAXS:thewavelist_number
+	NVAR remhor = root:Packages:GIWAXS:g_remhor
+	NVAR remhorqz = root:Packages:GIWAXS:g_remhorqz
+	
+	qchiconvert($(thisWaveStem + "_qzqxy"), (chi_start * Pi/180), (chi_end * Pi/180), q_start, q_end, remhor, remhorqz)
+	
+	// Append integration range to wave name
+	string newWaveName = thisWaveStem + "_chiq_" + num2str(chi_start) + "to" + num2str(chi_end) + "_" + num2str(q_start) + "to" + num2str(q_end)
+	rename $(thisWaveStem + "_chiq") $newWaveName
+	
+	if (stringMatch(processCode, "IvsQ"))
+		// Integrate chi-q data to I-q
+		integrateimage($newWaveName)
+			
+	elseif (stringMatch(processCode, "IvsChi"))
+		// Integrate chi-q data to I-chi
+		integrateimage2($newWaveName)	
+	endif
+	
+	update_wavelist()
+end
+
+
+function AT_switchWave(wavenameToSelect)
+	string wavenameToSelect
+	wave wavelist_number = root:Packages:GIWAXS:thewavelist_number
+	string wavenamelist = wavelist("*", ";", "")
+	
+	// Check for updates to waves in data folder
+	AT_updateWaveList()
+
+	// Deselect all waves, then select specified wave
+	wavelist_number = 0
+	
+	variable i
+	for (i = 0; i < numpnts(wavelist_number); i += 1)
+		if (stringMatch(stringfromlist(i, wavenamelist), wavenameToSelect))
+			wavelist_number[i] = 1
+		endif
+	endfor
+end
+
+
+function AT_updateWaveList()
+	string thewaves = Wavelist("*", ";", "")
+	
+	// Create lists for indexing selected wave
+	make /T /O /N=(ItemsInList(thewaves,";")) root:Packages:GIWAXS:thewavelist = stringfromlist(p,thewaves,";")
+	make /O /N=(itemsinlist(thewaves,";")) root:Packages:GIWAXS:thewavelist_number
 end
 
 
@@ -766,103 +863,6 @@ function AT_formatPlot()
 	// Plot labels
 	Label bottom "\\Z20q\\Z18 (Å\\S-1\\M\\Z18)"
 	Label left   "\\Z20Counts\\Z18"
-end
-
-
-function AT_updateWaveList()
-	string thewaves = Wavelist("*", ";", "")
-	
-	// Create lists for indexing selected wave
-	make /T /O /N=(ItemsInList(thewaves,";")) root:Packages:GIWAXS:thewavelist = stringfromlist(p,thewaves,";")
-	make /O /N=(itemsinlist(thewaves,";")) root:Packages:GIWAXS:thewavelist_number
-end
-
-
-function AT_qzqxyConvert()
-	string thiswavename
-	string wavenamelist = wavelist("*", ";", "")
-	
-	wave thewavelist_number = root:Packages:GIWAXS:thewavelist_number
-	NVAR g_BCX = root:Packages:GIWAXS:g_BCX
-	NVAR g_BCY = root:Packages:GIWAXS:g_BCY
-	NVAR g_R = root:Packages:GIWAXS:g_R
-	NVAR g_incidence = root:Packages:GIWAXS:g_incidence
-	NVAR g_pxsizex = root:Packages:GIWAXS:g_pxsizex
-	NVAR g_pxsizey = root:Packages:GIWAXS:g_pxsizey
-	NVAR g_q_range = root:Packages:GIWAXS:g_q_range
-	NVAR g_q_res = root:Packages:GIWAXS:g_q_res
-	NVAR g_BLenergy = root:Packages:GIWAXS:g_BLenergy
-	
-	variable i
-	for(i = 0; i < numpnts(root:Packages:GIWAXS:thewavelist_number); i += 1)
-		if(thewavelist_number[i] == 1)
-			thiswavename=stringfromlist(i, wavenamelist)
-			distcorr2($thiswavename, g_BCX, g_BCY, g_R, g_incidence, g_pxsizex, g_pxsizey, g_q_range, g_q_res, g_BLenergy)
-		endif
-	endfor
-	
-	update_wavelist()
-end
-
-
-function AT_wedge2Dto1D(thisWaveStem, plotName, processCode)
-	string thisWaveStem
-	string plotName
-	string processCode
-	
-	NVAR chi_start = root:Packages:GIWAXS:g_chi_start
-	NVAR chi_end = root:Packages:GIWAXS:g_chi_end
-	NVAR q_start = root:Packages:GIWAXS:g_q_start
-	NVAR q_end = root:Packages:GIWAXS:g_q_end
-	
-	// Switch to "qz(qxy) to chi(q)" tab
-	DoWindow/F giwaxs_tools
-	TabProc("qzqxy", 1)   // Fix later - doesn't update tab icon....
-	
-	// Display cake slice
-	DoWindow/F $plotName
-	
-	// Convert qz-qxy data to chi-q data
-	wave thewavelist_number = root:Packages:GIWAXS:thewavelist_number
-	NVAR remhor = root:Packages:GIWAXS:g_remhor
-	NVAR remhorqz = root:Packages:GIWAXS:g_remhorqz
-	
-	qchiconvert($(thisWaveStem + "_qzqxy"), (chi_start * Pi/180),(chi_end * Pi/180), q_start, q_end, remhor, remhorqz)
-	
-	// Append integration range to wave name
-	string newWaveName = thisWaveStem + "_chiq_" + num2str(chi_start) + "to" + num2str(chi_end) + "_" + num2str(q_start) + "to" + num2str(q_end)
-	rename $(thisWaveStem + "_chiq") $newWaveName
-	
-	if (stringMatch(processCode, "IvsQ"))
-		// Integrate chi-q data to I-q
-		integrateimage($newWaveName)
-			
-	elseif (stringMatch(processCode, "IvsChi"))
-		// Integrate chi-q data to I-chi
-		integrateimage2($newWaveName)	
-	endif
-	
-	update_wavelist()
-end
-
-
-function AT_switchWave(wavenameToSelect)
-	string wavenameToSelect
-	wave wavelist_number = root:Packages:GIWAXS:thewavelist_number
-	string wavenamelist = wavelist("*", ";", "")
-	
-	// Check for updates to waves in data folder
-	AT_updateWaveList()
-
-	// Deselect all waves, then select specified wave
-	wavelist_number = 0
-	
-	variable i
-	for (i = 0; i < numpnts(wavelist_number); i += 1)
-		if (stringMatch(stringfromlist(i, wavenamelist), wavenameToSelect))
-			wavelist_number[i] = 1
-		endif
-	endfor
 end
 
 
@@ -1162,6 +1162,9 @@ function AT_maskDataPts()
 			endif
 		endfor
 	endif
+	
+	// Refresh wave lists
+	AT_updateWaveList()
 end
 
 
